@@ -9,6 +9,10 @@ export default defineNuxtConfig({
     preset: 'vercel'
   },
 
+  colorMode: {
+    preference: 'light'
+  },
+
   devtools: {
     enabled: true
   },
