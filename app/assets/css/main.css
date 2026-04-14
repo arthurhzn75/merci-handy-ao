@@ -1,0 +1,102 @@
+@import "tailwindcss" theme(static);
+@import "@nuxt/ui";
+
+:root {
+  /* Merci Handy — Couleurs de base */
+  --mh-white: #ffffff;
+  --mh-black: #1a1a1a;
+  --mh-page-border: #242b32;
+  --mh-border: #dcdce6;
+  --mh-muted: #a5a5a5;
+  --mh-nav-bg: #f4f4f7;
+
+  /* Pastels arc-en-ciel */
+  --mh-mint: #a9ecd1;
+  --mh-sky: #b8ebff;
+  --mh-lilac: #bbbefe;
+  --mh-pink: #fec9ff;
+  --mh-blush: #f4b4c4;
+  --mh-peach: #fedfbe;
+
+  /* Accent evenementiel */
+  --mh-yellow: #f8e71c;
+
+  /* Degrades signatures */
+  --mh-gradient-h: linear-gradient(
+    90deg,
+    var(--mh-mint),
+    var(--mh-sky) 20%,
+    var(--mh-lilac) 40%,
+    var(--mh-pink) 60%,
+    var(--mh-blush) 80%,
+    var(--mh-peach) 99%
+  );
+  --mh-gradient-v: linear-gradient(
+    180deg,
+    var(--mh-mint),
+    var(--mh-sky) 20%,
+    var(--mh-lilac) 40%,
+    var(--mh-pink) 60%,
+    var(--mh-blush) 80%,
+    var(--mh-peach) 100%
+  );
+
+  /* Radius */
+  --mh-radius-sm: 6px;
+  --mh-radius-md: 8px;
+  --mh-radius-sticker: 40px;
+  --mh-radius-pill: 9999px;
+
+  /* Shadows */
+  --mh-shadow-pop: 0 4px 24px -4px rgba(0, 0, 0, 0.12);
+  --mh-shadow-sticker: 3px 3px 0 0 #000;
+
+  /* Typo (fallback Inter si Sofia Pro non disponible) */
+  --mh-font-body: 'Inter', sans-serif;
+  --mh-font-heading: 'Inter', sans-serif;
+  --mh-font-special: 'Courier New', monospace;
+  /* TODO: charger Sofia Pro via @font-face si les fichiers sont fournis */
+  /* TODO: charger Pixel12x10 via @font-face si les fichiers sont fournis */
+}
+
+@theme static {
+  --font-sans: 'Inter', sans-serif;
+
+  /* Map Merci Handy palette to Tailwind color tokens */
+  --color-mh-mint: #a9ecd1;
+  --color-mh-sky: #b8ebff;
+  --color-mh-lilac: #bbbefe;
+  --color-mh-pink: #fec9ff;
+  --color-mh-blush: #f4b4c4;
+  --color-mh-peach: #fedfbe;
+  --color-mh-yellow: #f8e71c;
+  --color-mh-black: #1a1a1a;
+  --color-mh-border: #dcdce6;
+  --color-mh-muted: #a5a5a5;
+  --color-mh-nav-bg: #f4f4f7;
+
+  /* Lilac palette for Nuxt UI primary */
+  --color-lilac-50: #f5f5ff;
+  --color-lilac-100: #ededff;
+  --color-lilac-200: #dddeff;
+  --color-lilac-300: #bbbefe;
+  --color-lilac-400: #9b9efe;
+  --color-lilac-500: #7a7dfe;
+  --color-lilac-600: #5c5fe8;
+  --color-lilac-700: #4648c4;
+  --color-lilac-800: #3a3c9e;
+  --color-lilac-900: #33357e;
+  --color-lilac-950: #1e1f4a;
+}
+
+/* Rainbow top border on dashboard panels */
+.mh-rainbow-border {
+  border-top: 4px solid transparent;
+  border-image: var(--mh-gradient-h) 1;
+}
+
+/* KPI card hover effect */
+.mh-card-hover:hover {
+  box-shadow: var(--mh-shadow-pop);
+  transition: box-shadow 0.2s ease;
+}
