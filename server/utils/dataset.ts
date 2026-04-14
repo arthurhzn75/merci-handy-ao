@@ -282,10 +282,56 @@ export function aggregateTimeSeries(
     }))
 }
 
+// ─── Gift / free product detection ───────────────────────────────
+
+const GIFT_PATTERNS = [
+  /100%\s*off/i,
+  /\(cadeau\)/i,
+  /en cadeau$/i,
+  /\(gratuit\)/i,
+  /échantillon/i,
+  /echantillon/i,
+  /sample/i,
+  /^🎁/
+]
+
+export function isGiftProduct(title: string): boolean {
+  return GIFT_PATTERNS.some(p => p.test(title))
+}
+
+// ─── Variant grouping ────────────────────────────────────────────
+
+// Known product families — map variant names to a base product group
+const VARIANT_FAMILIES: [RegExp, string][] = [
+  [/^Gel Mains Nettoyant\b/i, 'Gel Mains Nettoyant (tous parfums)'],
+  [/^Spray Mains Nettoyant\b/i, 'Spray Mains Nettoyant (tous parfums)'],
+  [/^Bombe de Bain\b/i, 'Bombe de Bain (toutes)'],
+  [/^Brume Corps et Cheveux\b/i, 'Brume Corps et Cheveux (toutes)'],
+  [/^Crème Mains Hydratante\b/i, 'Creme Mains Hydratante (toutes)'],
+  [/^Crème Mains\b(?!.*Hydratante)/i, 'Creme Mains (toutes)'],
+  [/^Déodorant\b/i, 'Deodorant (tous parfums)'],
+  [/^Gel Douche\b/i, 'Gel Douche (tous parfums)'],
+  [/^Bouteille & Recharge Gel Douche\b/i, 'Bouteille & Recharge Gel Douche (toutes)'],
+  [/^Sérum Corps\b/i, 'Serum Corps (tous)'],
+  [/^24 Patchs Boutons\b/i, '24 Patchs Boutons (toutes editions)'],
+  [/^3 x 24 Patchs/i, '3 x 24 Patchs Boutons (bundle)'],
+  [/^Recharge Gel Douche\b/i, 'Recharge Gel Douche (toutes)'],
+  [/^Masque\b/i, 'Masques (tous)'],
+  [/^Baume à Lèvres\b/i, 'Baume a Levres (tous)']
+]
+
+export function getProductGroup(title: string): string {
+  for (const [pattern, group] of VARIANT_FAMILIES) {
+    if (pattern.test(title)) return group
+  }
+  return title // no grouping, keep original title
+}
+
 // ─── Product profitability ───────────────────────────────────────
 
 export interface ProductStats {
   product: string
+  variants: string[]
   type: string
   sku: string
   quantity: number
@@ -300,29 +346,32 @@ export interface ProductStats {
   returnRate: number
   abcClass?: string
   revenueShare: number
+  isGift: boolean
 }
 
-export function getProductProfitability(lines: LineItem[]): ProductStats[] {
+export function getProductProfitability(lines: LineItem[], groupVariants = false): ProductStats[] {
   const products = new Map<string, {
-    type: string; sku: string
+    variants: Set<string>; type: string; sku: string
     quantity: number; grossSales: number; discounts: number; returnAmount: number
     netSales: number; grossProfit: number; unitPrice: number
-    itemsSold: number; itemsReturned: number
+    itemsSold: number; itemsReturned: number; isGift: boolean
   }>()
 
   for (const line of lines) {
     if (!line.productTitle) continue
-    const key = line.productTitle
+    const key = groupVariants ? getProductGroup(line.productTitle) : line.productTitle
+    const gift = isGiftProduct(line.productTitle)
 
     if (!products.has(key)) {
       products.set(key, {
-        type: line.productType, sku: line.sku,
+        variants: new Set(), type: line.productType, sku: line.sku,
         quantity: 0, grossSales: 0, discounts: 0, returnAmount: 0,
         netSales: 0, grossProfit: 0, unitPrice: line.unitPrice,
-        itemsSold: 0, itemsReturned: 0
+        itemsSold: 0, itemsReturned: 0, isGift: gift
       })
     }
     const p = products.get(key)!
+    if (line.productTitle !== key) p.variants.add(line.productTitle)
     p.quantity += line.salesQuantity
     p.grossSales += line.grossSales
     p.discounts += line.discounts
@@ -332,11 +381,14 @@ export function getProductProfitability(lines: LineItem[]): ProductStats[] {
     if (line.salesQuantity > 0) p.itemsSold += line.salesQuantity
     p.itemsReturned += line.itemsReturned
     if (line.unitPrice > 0) p.unitPrice = line.unitPrice
+    // If any variant in the group is a gift, mark the whole group
+    if (gift) p.isGift = true
   }
 
   const allProducts = Array.from(products.entries())
     .map(([name, p]) => ({
       product: name,
+      variants: Array.from(p.variants).sort(),
       type: p.type,
       sku: p.sku,
       quantity: p.quantity,
@@ -349,7 +401,9 @@ export function getProductProfitability(lines: LineItem[]): ProductStats[] {
       unitPrice: Math.round(p.unitPrice * 100) / 100,
       itemsReturned: p.itemsReturned,
       returnRate: p.itemsSold > 0 ? Math.round((p.itemsReturned / p.itemsSold) * 10000) / 100 : 0,
-      revenueShare: 0
+      revenueShare: 0,
+      isGift: p.isGift,
+      abcClass: undefined as string | undefined
     }))
     .filter(p => p.quantity > 0)
     .sort((a, b) => b.netSales - a.netSales)
