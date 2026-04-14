@@ -19,41 +19,21 @@ const { data } = await useFetch('/api/overview', {
 
 const stats = computed(() => data.value?.stats)
 
-function formatCurrency(value: number): string {
-  return value.toLocaleString('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0
-  })
+function fmtCurrency(v: number) {
+  return v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
 
 const kpis = computed(() => {
   if (!stats.value) return []
   return [
-    {
-      title: 'Chiffre d\'affaires net',
-      icon: 'i-lucide-euro',
-      value: formatCurrency(stats.value.revenue),
-      variation: stats.value.revenueVariation
-    },
-    {
-      title: 'Commandes nettes',
-      icon: 'i-lucide-shopping-cart',
-      value: stats.value.orders.toString(),
-      variation: stats.value.ordersVariation
-    },
-    {
-      title: 'Panier moyen',
-      icon: 'i-lucide-receipt',
-      value: formatCurrency(stats.value.aov),
-      variation: stats.value.aovVariation
-    },
-    {
-      title: 'Taux nouveaux clients',
-      icon: 'i-lucide-user-plus',
-      value: `${stats.value.newCustomerRate}%`,
-      variation: stats.value.newCustomerRateVariation
-    }
+    { title: 'CA Net', icon: 'i-lucide-euro', value: fmtCurrency(stats.value.netSales), variation: stats.value.netSalesVariation },
+    { title: 'Marge Brute', icon: 'i-lucide-trending-up', value: fmtCurrency(stats.value.grossProfit), variation: stats.value.grossProfitVariation },
+    { title: 'Taux de Marge', icon: 'i-lucide-percent', value: `${stats.value.grossMarginRate}%`, variation: stats.value.grossMarginRateVariation },
+    { title: 'Items Vendus', icon: 'i-lucide-package', value: stats.value.itemsSold.toLocaleString('fr-FR'), variation: stats.value.itemsSoldVariation },
+    { title: 'Commandes', icon: 'i-lucide-shopping-cart', value: stats.value.orders.toLocaleString('fr-FR'), variation: stats.value.ordersVariation },
+    { title: 'Panier Moyen', icon: 'i-lucide-receipt', value: fmtCurrency(stats.value.aov), variation: stats.value.aovVariation },
+    { title: 'Articles / Commande', icon: 'i-lucide-layers', value: stats.value.itemsPerOrder.toFixed(1), variation: stats.value.itemsPerOrderVariation },
+    { title: 'Taux de Retour', icon: 'i-lucide-undo-2', value: `${stats.value.returnRate}%`, variation: stats.value.returnRateVariation, invertColor: true }
   ]
 })
 </script>
@@ -80,7 +60,8 @@ const kpis = computed(() => {
         </span>
 
         <UBadge
-          :color="(kpi.variation ?? 0) >= 0 ? 'success' : 'error'"
+          v-if="kpi.variation !== undefined"
+          :color="(kpi.invertColor ? (kpi.variation ?? 0) <= 0 : (kpi.variation ?? 0) >= 0) ? 'success' : 'error'"
           variant="subtle"
           class="text-xs"
         >

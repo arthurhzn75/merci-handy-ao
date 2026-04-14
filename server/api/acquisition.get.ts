@@ -13,17 +13,13 @@ export default defineEventHandler((event) => {
   const query = querySchema.parse(getQuery(event))
 
   const to = query.to ? new Date(query.to) : new Date()
-  const from = query.from ? new Date(query.from) : subDays(to, 14)
+  const from = query.from ? new Date(query.from) : subDays(to, 30)
 
   let lines = getProductLines(from, to)
-
-  if (query.channel) {
-    lines = lines.filter(l => l.salesChannel === query.channel)
-  }
+  if (query.channel) lines = lines.filter(l => l.salesChannel === query.channel)
 
   const breakdown = getTrafficBreakdown(lines, query.model)
 
-  // Aggregate for top sources bar chart (by source only)
   const sourceAgg = new Map<string, number>()
   for (const row of breakdown) {
     sourceAgg.set(row.source, (sourceAgg.get(row.source) || 0) + row.revenue)
@@ -33,12 +29,7 @@ export default defineEventHandler((event) => {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10)
 
-  // Available sales channels
   const channels = [...new Set(lines.map(l => l.salesChannel).filter(Boolean))].sort()
 
-  return {
-    breakdown,
-    topSources,
-    channels
-  }
+  return { breakdown, topSources, channels }
 })

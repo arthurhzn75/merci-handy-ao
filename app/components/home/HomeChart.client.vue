@@ -11,11 +11,7 @@ const props = defineProps<{
   range: Range
 }>()
 
-type DataRecord = {
-  date: string
-  revenue: number
-  orders: number
-}
+type DataRecord = { date: string; netSales: number; grossProfit: number; orders: number }
 
 const { width } = useElementSize(cardRef)
 
@@ -30,44 +26,30 @@ const { data: rawData } = await useFetch('/api/overview', {
   default: () => ({ stats: null, timeSeries: [], topProducts: [] })
 })
 
-const data = computed<DataRecord[]>(() => {
-  return (rawData.value?.timeSeries || []).map((entry: any) => ({
-    date: entry.date,
-    revenue: entry.revenue,
-    orders: entry.orders
-  }))
-})
+const data = computed<DataRecord[]>(() => rawData.value?.timeSeries || [])
 
 const x = (_: DataRecord, i: number) => i
-const yRevenue = (d: DataRecord) => d.revenue
-const yOrders = (d: DataRecord) => d.orders
+const yNetSales = (d: DataRecord) => d.netSales
+const yGrossProfit = (d: DataRecord) => d.grossProfit
 
-const totalRevenue = computed(() => data.value.reduce((acc, { revenue }) => acc + revenue, 0))
+const totalNet = computed(() => data.value.reduce((a, d) => a + d.netSales, 0))
 
-const formatCurrency = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format
+const fmtCurrency = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format
 
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr)
-  switch (props.period) {
-    case 'daily':
-      return format(date, 'd MMM', { locale: fr })
-    case 'weekly':
-      return format(date, 'd MMM', { locale: fr })
-    case 'monthly':
-      return format(date, 'MMM yyyy', { locale: fr })
-    default:
-      return dateStr
-  }
+  return props.period === 'monthly'
+    ? format(date, 'MMM yyyy', { locale: fr })
+    : format(date, 'd MMM', { locale: fr })
 }
 
 const xTicks = (i: number) => {
-  if (i === 0 || i === data.value.length - 1 || !data.value[i]) {
-    return ''
-  }
+  if (i === 0 || i === data.value.length - 1 || !data.value[i]) return ''
   return formatDate(data.value[i]!.date)
 }
 
-const template = (d: DataRecord) => `${formatDate(d.date)}<br/>CA: ${formatCurrency(d.revenue)}<br/>Commandes: ${d.orders}`
+const template = (d: DataRecord) =>
+  `${formatDate(d.date)}<br/>CA Net: ${fmtCurrency(d.netSales)}<br/>Marge: ${fmtCurrency(d.grossProfit)}<br/>Commandes: ${d.orders}`
 </script>
 
 <template>
@@ -75,53 +57,29 @@ const template = (d: DataRecord) => `${formatDate(d.date)}<br/>CA: ${formatCurre
     <template #header>
       <div>
         <p class="text-xs text-muted uppercase mb-1.5">
-          Evolution du CA net
+          Evolution CA Net & Marge Brute
         </p>
         <p class="text-3xl text-highlighted font-semibold">
-          {{ formatCurrency(totalRevenue) }}
+          {{ fmtCurrency(totalNet) }}
         </p>
       </div>
     </template>
 
-    <VisXYContainer
-      :data="data"
-      :padding="{ top: 40 }"
-      class="h-96"
-      :width="width"
-    >
-      <VisArea
-        :x="x"
-        :y="yRevenue"
-        color="var(--color-mh-lilac)"
-        :opacity="0.15"
-      />
-      <VisLine
-        :x="x"
-        :y="yRevenue"
-        color="var(--color-mh-lilac)"
-      />
+    <VisXYContainer :data="data" :padding="{ top: 40 }" class="h-96" :width="width">
+      <VisArea :x="x" :y="yNetSales" color="var(--color-mh-lilac)" :opacity="0.12" />
+      <VisLine :x="x" :y="yNetSales" color="var(--color-mh-lilac)" :line-width="2" />
+      <VisLine :x="x" :y="yGrossProfit" color="var(--color-mh-mint)" :line-width="2" />
+      <VisArea :x="x" :y="yGrossProfit" color="var(--color-mh-mint)" :opacity="0.08" />
 
-      <VisStackedBar
-        :x="x"
-        :y="[yOrders]"
-        :color="['var(--color-mh-mint)']"
-        :bar-width="0.4"
-        :rounded-corners="4"
-      />
-
-      <VisAxis
-        type="x"
-        :x="x"
-        :tick-format="xTicks"
-      />
-
-      <VisCrosshair
-        color="var(--color-mh-lilac)"
-        :template="template"
-      />
-
+      <VisAxis type="x" :x="x" :tick-format="xTicks" />
+      <VisCrosshair color="var(--color-mh-lilac)" :template="template" />
       <VisTooltip />
     </VisXYContainer>
+
+    <div class="flex items-center gap-4 px-6 pt-2 text-xs text-muted">
+      <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-mh-lilac rounded" /> CA Net</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-mh-mint rounded" /> Marge Brute</span>
+    </div>
   </UCard>
 </template>
 
@@ -129,11 +87,9 @@ const template = (d: DataRecord) => `${formatDate(d.date)}<br/>CA: ${formatCurre
 .unovis-xy-container {
   --vis-crosshair-line-stroke-color: var(--color-mh-lilac);
   --vis-crosshair-circle-stroke-color: var(--ui-bg);
-
   --vis-axis-grid-color: var(--mh-border);
   --vis-axis-tick-color: var(--mh-border);
   --vis-axis-tick-label-color: var(--mh-muted);
-
   --vis-tooltip-background-color: var(--ui-bg);
   --vis-tooltip-border-color: var(--mh-border);
   --vis-tooltip-text-color: var(--ui-text-highlighted);

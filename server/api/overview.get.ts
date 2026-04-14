@@ -1,9 +1,6 @@
 import { z } from 'zod'
 import { subDays } from 'date-fns'
-import {
-  getProductLines, computeNetRevenue, computeNetOrders,
-  computeNewCustomerRate, aggregateTimeSeries, getTopProducts
-} from '../utils/dataset'
+import { getProductLines, computeOverviewStats, aggregateTimeSeries, getProductProfitability } from '../utils/dataset'
 
 const querySchema = z.object({
   from: z.string().optional(),
@@ -15,47 +12,37 @@ export default defineEventHandler((event) => {
   const query = querySchema.parse(getQuery(event))
 
   const to = query.to ? new Date(query.to) : new Date()
-  const from = query.from ? new Date(query.from) : subDays(to, 14)
+  const from = query.from ? new Date(query.from) : subDays(to, 30)
 
-  // Current period
   const currentLines = getProductLines(from, to)
-  const currentRevenue = computeNetRevenue(currentLines)
-  const currentOrders = computeNetOrders(currentLines)
-  const currentAov = currentOrders > 0 ? Math.round((currentRevenue / currentOrders) * 100) / 100 : 0
-  const currentNewRate = computeNewCustomerRate(currentLines)
+  const currentStats = computeOverviewStats(currentLines)
 
-  // Previous period (same length)
+  // Previous period
   const periodLength = to.getTime() - from.getTime()
   const prevTo = new Date(from.getTime() - 1)
   const prevFrom = new Date(prevTo.getTime() - periodLength)
-
   const prevLines = getProductLines(prevFrom, prevTo)
-  const prevRevenue = computeNetRevenue(prevLines)
-  const prevOrders = computeNetOrders(prevLines)
-  const prevAov = prevOrders > 0 ? Math.round((prevRevenue / prevOrders) * 100) / 100 : 0
-  const prevNewRate = computeNewCustomerRate(prevLines)
+  const prevStats = computeOverviewStats(prevLines)
 
   const variation = (current: number, prev: number): number => {
     if (prev === 0) return current > 0 ? 100 : 0
     return Math.round(((current - prev) / Math.abs(prev)) * 10000) / 100
   }
 
-  // Time series
   const timeSeries = aggregateTimeSeries(currentLines, query.granularity)
-
-  // Top products
-  const topProducts = getTopProducts(currentLines, 10)
+  const topProducts = getProductProfitability(currentLines).slice(0, 10)
 
   return {
     stats: {
-      revenue: currentRevenue,
-      revenueVariation: variation(currentRevenue, prevRevenue),
-      orders: currentOrders,
-      ordersVariation: variation(currentOrders, prevOrders),
-      aov: currentAov,
-      aovVariation: variation(currentAov, prevAov),
-      newCustomerRate: Math.round(currentNewRate * 100) / 100,
-      newCustomerRateVariation: variation(currentNewRate, prevNewRate)
+      ...currentStats,
+      netSalesVariation: variation(currentStats.netSales, prevStats.netSales),
+      grossProfitVariation: variation(currentStats.grossProfit, prevStats.grossProfit),
+      grossMarginRateVariation: variation(currentStats.grossMarginRate, prevStats.grossMarginRate),
+      itemsSoldVariation: variation(currentStats.itemsSold, prevStats.itemsSold),
+      ordersVariation: variation(currentStats.orders, prevStats.orders),
+      aovVariation: variation(currentStats.aov, prevStats.aov),
+      itemsPerOrderVariation: variation(currentStats.itemsPerOrder, prevStats.itemsPerOrder),
+      returnRateVariation: variation(currentStats.returnRate, prevStats.returnRate)
     },
     timeSeries,
     topProducts

@@ -5,31 +5,53 @@ useDashboard()
 
 const open = ref(false)
 
+const close = () => { open.value = false }
+
 const links = [{
   label: 'Vue d\'ensemble',
   icon: 'i-lucide-house',
   to: '/',
-  onSelect: () => { open.value = false }
+  onSelect: close
+}, {
+  label: 'Matrice Produit',
+  icon: 'i-lucide-grid-3x3',
+  to: '/products',
+  onSelect: close
+}, {
+  label: 'Mix Produit',
+  icon: 'i-lucide-pie-chart',
+  to: '/mix',
+  onSelect: close
+}, {
+  label: 'Retours',
+  icon: 'i-lucide-undo-2',
+  to: '/returns',
+  onSelect: close
+}, {
+  label: 'Promotions',
+  icon: 'i-lucide-tag',
+  to: '/discounts',
+  onSelect: close
+}, {
+  label: 'Unit Economics',
+  icon: 'i-lucide-calculator',
+  to: '/unit-economics',
+  onSelect: close
 }, {
   label: 'Acquisition',
   icon: 'i-lucide-megaphone',
   to: '/acquisition',
-  onSelect: () => { open.value = false }
-}, {
-  label: 'Produits',
-  icon: 'i-lucide-package',
-  to: '/products',
-  onSelect: () => { open.value = false }
+  onSelect: close
 }, {
   label: 'Clients',
   icon: 'i-lucide-users',
   to: '/customers',
-  onSelect: () => { open.value = false }
+  onSelect: close
 }, {
   label: 'Geographie',
   icon: 'i-lucide-map-pin',
   to: '/geography',
-  onSelect: () => { open.value = false }
+  onSelect: close
 }] satisfies NavigationMenuItem[]
 
 const groups = computed(() => [{

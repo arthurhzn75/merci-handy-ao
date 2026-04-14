@@ -3,20 +3,9 @@ import { h } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
 import type { Period, Range } from '~/types'
 
-const props = defineProps<{
-  period: Period
-  range: Range
-}>()
+const props = defineProps<{ period: Period; range: Range }>()
 
-interface TopProduct {
-  product: string
-  type: string
-  quantity: number
-  revenue: number
-  cogs: number
-  margin: number
-  revenueShare: number
-}
+const UBadge = resolveComponent('UBadge')
 
 const queryParams = computed(() => ({
   from: props.range.start.toISOString(),
@@ -29,39 +18,33 @@ const { data } = await useFetch('/api/overview', {
   default: () => ({ stats: null, timeSeries: [], topProducts: [] })
 })
 
-const topProducts = computed<TopProduct[]>(() => data.value?.topProducts || [])
+const topProducts = computed(() => data.value?.topProducts || [])
 
-const formatCurrency = (value: number) =>
-  value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+const fmtCurrency = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 
-const columns: TableColumn<TopProduct>[] = [
+const columns: TableColumn<any>[] = [
+  { accessorKey: 'product', header: 'Produit' },
+  { accessorKey: 'type', header: 'Type' },
   {
-    accessorKey: 'product',
-    header: 'Produit'
+    accessorKey: 'abcClass',
+    header: 'ABC',
+    cell: ({ row }) => {
+      const cls = row.getValue('abcClass') as string
+      const color = cls === 'A' ? 'success' : cls === 'B' ? 'warning' : 'neutral'
+      return h(UBadge, { color, variant: 'subtle', class: 'text-xs font-bold' }, () => cls)
+    }
   },
+  { accessorKey: 'quantity', header: () => h('div', { class: 'text-right' }, 'Qte'), cell: ({ row }) => h('div', { class: 'text-right' }, row.getValue('quantity')) },
+  { accessorKey: 'netSales', header: () => h('div', { class: 'text-right' }, 'CA Net'), cell: ({ row }) => h('div', { class: 'text-right font-medium' }, fmtCurrency(row.getValue('netSales') as number)) },
+  { accessorKey: 'grossProfit', header: () => h('div', { class: 'text-right' }, 'Marge'), cell: ({ row }) => h('div', { class: 'text-right' }, fmtCurrency(row.getValue('grossProfit') as number)) },
   {
-    accessorKey: 'type',
-    header: 'Type'
-  },
-  {
-    accessorKey: 'quantity',
-    header: 'Quantite',
-    cell: ({ row }) => h('div', { class: 'text-right' }, row.getValue('quantity'))
-  },
-  {
-    accessorKey: 'revenue',
-    header: () => h('div', { class: 'text-right' }, 'CA'),
-    cell: ({ row }) => h('div', { class: 'text-right font-medium' }, formatCurrency(row.getValue('revenue') as number))
-  },
-  {
-    accessorKey: 'margin',
-    header: () => h('div', { class: 'text-right' }, 'Marge'),
-    cell: ({ row }) => h('div', { class: 'text-right' }, formatCurrency(row.getValue('margin') as number))
-  },
-  {
-    accessorKey: 'revenueShare',
-    header: () => h('div', { class: 'text-right' }, '% CA'),
-    cell: ({ row }) => h('div', { class: 'text-right' }, `${row.getValue('revenueShare')}%`)
+    accessorKey: 'marginRate',
+    header: () => h('div', { class: 'text-right' }, 'Marge %'),
+    cell: ({ row }) => {
+      const rate = row.getValue('marginRate') as number
+      const color = rate >= 70 ? 'text-green-600' : rate >= 50 ? 'text-yellow-600' : 'text-red-600'
+      return h('div', { class: `text-right font-medium ${color}` }, `${rate}%`)
+    }
   }
 ]
 </script>
@@ -69,11 +52,8 @@ const columns: TableColumn<TopProduct>[] = [
 <template>
   <UCard>
     <template #header>
-      <p class="text-sm font-semibold text-highlighted">
-        Top 10 produits
-      </p>
+      <p class="text-sm font-semibold text-highlighted">Top 10 produits</p>
     </template>
-
     <UTable
       :data="topProducts"
       :columns="columns"
