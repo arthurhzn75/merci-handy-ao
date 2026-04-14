@@ -1,5 +1,3 @@
-import { readFileSync } from 'fs'
-import { join } from 'path'
 import Papa from 'papaparse'
 import {
   startOfDay, endOfDay, startOfWeek, startOfMonth,
@@ -70,18 +68,13 @@ function parseDate(val: string | undefined): Date | null {
 
 let _data: LineItem[] | null = null
 
-export function loadDataset(): LineItem[] {
-  if (_data) return _data
-
-  const csvPath = join(process.cwd(), 'data', 'hzn_mh_data_funnel.io.csv')
-  const csvContent = readFileSync(csvPath, 'utf-8')
-
+function parseRows(csvContent: string): LineItem[] {
   const parsed = Papa.parse(csvContent, {
     header: true,
     skipEmptyLines: true
   })
 
-  _data = (parsed.data as Record<string, string>[]).map((row) => ({
+  const items = (parsed.data as Record<string, string>[]).map((row) => ({
     orderId: row['Order ID'] || '',
     orderName: row['Order Name'] || '',
     orderCreatedAt: parseDate(row['Order Created At']) || new Date(),
@@ -127,18 +120,34 @@ export function loadDataset(): LineItem[] {
     returningCustomerOrders: parseNum(row['Returning Customer Orders'])
   }))
 
+  console.log(`[dataset] Parsed ${items.length} line items`)
+  return items
+}
+
+export async function loadDataset(): Promise<LineItem[]> {
+  if (_data) return _data
+
+  const storage = useStorage('assets:server')
+  const csvContent = await storage.getItem('dataset.csv') as string
+
+  if (!csvContent) {
+    console.error('[dataset] CSV file not found in server assets')
+    return []
+  }
+
+  _data = parseRows(csvContent)
   console.log(`[dataset] Loaded ${_data.length} line items`)
   return _data
 }
 
-export function reloadDataset(): LineItem[] {
+export async function reloadDataset(): Promise<LineItem[]> {
   _data = null
   return loadDataset()
 }
 
 // Filter PRODUCT lines by date range
-export function getProductLines(from?: Date, to?: Date): LineItem[] {
-  const data = loadDataset()
+export async function getProductLines(from?: Date, to?: Date): Promise<LineItem[]> {
+  const data = await loadDataset()
   return data.filter((item) => {
     if (item.saleLineType !== 'PRODUCT') return false
     if (from && to) {

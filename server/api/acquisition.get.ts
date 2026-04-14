@@ -9,13 +9,13 @@ const querySchema = z.object({
   channel: z.string().optional()
 })
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   const query = querySchema.parse(getQuery(event))
 
   const to = query.to ? new Date(query.to) : new Date()
   const from = query.from ? new Date(query.from) : subDays(to, 30)
 
-  let lines = getProductLines(from, to)
+  let lines = await getProductLines(from, to)
   if (query.channel) lines = lines.filter(l => l.salesChannel === query.channel)
 
   const breakdown = getTrafficBreakdown(lines, query.model)

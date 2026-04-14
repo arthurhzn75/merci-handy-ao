@@ -8,20 +8,20 @@ const querySchema = z.object({
   granularity: z.enum(['daily', 'weekly', 'monthly']).optional().default('daily')
 })
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   const query = querySchema.parse(getQuery(event))
 
   const to = query.to ? new Date(query.to) : new Date()
   const from = query.from ? new Date(query.from) : subDays(to, 30)
 
-  const currentLines = getProductLines(from, to)
+  const currentLines = await getProductLines(from, to)
   const currentStats = computeOverviewStats(currentLines)
 
   // Previous period
   const periodLength = to.getTime() - from.getTime()
   const prevTo = new Date(from.getTime() - 1)
   const prevFrom = new Date(prevTo.getTime() - periodLength)
-  const prevLines = getProductLines(prevFrom, prevTo)
+  const prevLines = await getProductLines(prevFrom, prevTo)
   const prevStats = computeOverviewStats(prevLines)
 
   const variation = (current: number, prev: number): number => {
