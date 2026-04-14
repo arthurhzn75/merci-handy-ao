@@ -127,11 +127,42 @@ function parseRows(csvContent: string): LineItem[] {
 export async function loadDataset(): Promise<LineItem[]> {
   if (_data) return _data
 
-  const storage = useStorage('assets:server')
-  const csvContent = await storage.getItem('dataset.csv') as string
+  let csvContent: string | null = null
+
+  // Try Nitro server assets (works in dev and production)
+  try {
+    const storage = useStorage('assets:server')
+    const raw = await storage.getItemRaw('dataset.csv')
+    if (raw) {
+      // raw can be Buffer, ArrayBuffer, or string depending on runtime
+      if (typeof raw === 'string') {
+        csvContent = raw
+      } else if (raw instanceof Buffer) {
+        csvContent = raw.toString('utf-8')
+      } else if (raw instanceof Uint8Array) {
+        csvContent = new TextDecoder().decode(raw)
+      } else {
+        csvContent = String(raw)
+      }
+    }
+  } catch (e) {
+    console.warn('[dataset] Storage read failed, trying fallback:', e)
+  }
+
+  // Fallback: direct file read (dev environment)
+  if (!csvContent) {
+    try {
+      const { readFileSync } = await import('fs')
+      const { join } = await import('path')
+      const filePath = join(process.cwd(), 'server', 'assets', 'dataset.csv')
+      csvContent = readFileSync(filePath, 'utf-8')
+    } catch (e) {
+      console.error('[dataset] Fallback file read also failed:', e)
+    }
+  }
 
   if (!csvContent) {
-    console.error('[dataset] CSV file not found in server assets')
+    console.error('[dataset] CSV file not found')
     return []
   }
 
