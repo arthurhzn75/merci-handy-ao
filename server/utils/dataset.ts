@@ -423,6 +423,60 @@ export function getProductProfitability(lines: LineItem[], groupVariants = false
   return allProducts
 }
 
+// ─── Category stats (enriched per-type aggregation) ──────────────
+
+export function getCategoryStats(lines: LineItem[]) {
+  const types = new Map<string, {
+    products: Set<string>; quantity: number
+    grossSales: number; discounts: number; netSales: number; grossProfit: number
+    orders: Set<string>; itemsSold: number; itemsReturned: number
+  }>()
+
+  for (const line of lines) {
+    const type = line.productType || 'Sans type'
+    if (!types.has(type)) {
+      types.set(type, {
+        products: new Set(), quantity: 0,
+        grossSales: 0, discounts: 0, netSales: 0, grossProfit: 0,
+        orders: new Set(), itemsSold: 0, itemsReturned: 0
+      })
+    }
+    const t = types.get(type)!
+    if (line.productTitle) t.products.add(line.productTitle)
+    t.quantity += line.salesQuantity
+    t.grossSales += line.grossSales
+    t.discounts += line.discounts
+    t.netSales += line.netSales
+    t.grossProfit += line.grossProfit
+    if (line.salesQuantity > 0) t.itemsSold += line.salesQuantity
+    t.itemsReturned += line.itemsReturned
+    if (line.orderActionType === 'ORDER' && line.saleActionType === 'ORDER') {
+      t.orders.add(line.orderId)
+    }
+  }
+
+  const totalNet = Array.from(types.values()).reduce((a, t) => a + t.netSales, 0)
+
+  return Array.from(types.entries())
+    .map(([type, t]) => ({
+      type,
+      productCount: t.products.size,
+      quantity: t.quantity,
+      grossSales: Math.round(t.grossSales * 100) / 100,
+      discounts: Math.round(t.discounts * 100) / 100,
+      netSales: Math.round(t.netSales * 100) / 100,
+      grossProfit: Math.round(t.grossProfit * 100) / 100,
+      marginRate: t.netSales > 0 ? Math.round((t.grossProfit / t.netSales) * 10000) / 100 : 0,
+      orders: t.orders.size,
+      aov: t.orders.size > 0 ? Math.round((t.netSales / t.orders.size) * 100) / 100 : 0,
+      itemsReturned: t.itemsReturned,
+      returnRate: t.itemsSold > 0 ? Math.round((t.itemsReturned / t.itemsSold) * 10000) / 100 : 0,
+      revenueShare: totalNet > 0 ? Math.round((t.netSales / totalNet) * 10000) / 100 : 0
+    }))
+    .filter(t => t.quantity > 0)
+    .sort((a, b) => b.netSales - a.netSales)
+}
+
 // ─── Mix analysis (by product type over months) ──────────────────
 
 export function getMixByMonth(lines: LineItem[]) {
