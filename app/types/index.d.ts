@@ -5,8 +5,6 @@ export interface Range {
   end: Date
 }
 
-export type AttributionModel = 'first' | 'last'
-
 export interface OverviewStats {
   revenue: number
   revenueVariation: number
@@ -34,16 +32,6 @@ export interface TopProduct {
   revenueShare: number
 }
 
-export interface AcquisitionRow {
-  source: string
-  medium: string
-  campaign: string
-  orders: number
-  revenue: number
-  aov: number
-  newCustomerRate: number
-}
-
 export interface ProductRow {
   product: string
   type: string
@@ -56,17 +44,26 @@ export interface ProductRow {
   returnRate: number
 }
 
-export interface CustomerStats {
-  uniqueCustomers: number
-  newCustomerRate: number
-  avgLtv: number
-  avgFrequency: number
+export interface DataQuality {
+  totalLines: number
+  cogsGapRate: number
+  cogsGapCount: number
+  validationRate: number
+  validationErrors: number
+  marginReliable: boolean
 }
 
-export interface GeoRow {
-  country: string
-  city: string
-  orders: number
-  revenue: number
-  revenueShare: number
+export interface CrossCheck {
+  grossSales: number
+  discounts: number
+  returns: number
+  expectedNetSales: number
+  actualNetSales: number
+  delta: number
+}
+
+export interface Insight {
+  type: 'success' | 'warning' | 'info' | 'error'
+  icon: string
+  text: string
 }

@@ -37,21 +37,6 @@ const links = [{
   icon: 'i-lucide-calculator',
   to: '/unit-economics',
   onSelect: close
-}, {
-  label: 'Acquisition',
-  icon: 'i-lucide-megaphone',
-  to: '/acquisition',
-  onSelect: close
-}, {
-  label: 'Clients',
-  icon: 'i-lucide-users',
-  to: '/customers',
-  onSelect: close
-}, {
-  label: 'Geographie',
-  icon: 'i-lucide-map-pin',
-  to: '/geography',
-  onSelect: close
 }] satisfies NavigationMenuItem[]
 
 const groups = computed(() => [{

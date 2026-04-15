@@ -49,8 +49,23 @@ const { data } = await useFetch('/api/products', {
   query: queryParams,
   default: () => ({
     catalog: [], abcSummary: { A: { count: 0, netSales: 0 }, B: { count: 0, netSales: 0 }, C: { count: 0, netSales: 0 } },
-    bcgData: [], categoryStats: [], fullCatalog: [], availableTypes: []
+    bcgData: [], categoryStats: [], fullCatalog: [], availableTypes: [],
+    dataQuality: null, portfolioHealth: null
   })
+})
+
+const hhiColor = computed(() => {
+  const hhi = data.value?.portfolioHealth?.hhi || 0
+  if (hhi > 2500) return 'text-red-600'
+  if (hhi > 1500) return 'text-yellow-600'
+  return 'text-green-600'
+})
+
+const hhiLabel = computed(() => {
+  const hhi = data.value?.portfolioHealth?.hhi || 0
+  if (hhi > 2500) return 'Concentre'
+  if (hhi > 1500) return 'Modere'
+  return 'Diversifie'
 })
 
 const fmtCurrency = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
@@ -226,6 +241,37 @@ const pastelColors = ['var(--color-mh-mint)', 'var(--color-mh-sky)', 'var(--colo
     </template>
 
     <template #body>
+      <DataQualityBanner
+        v-if="data?.dataQuality"
+        :cogs-gap-rate="data.dataQuality.cogsGapRate"
+        :validation-rate="data.dataQuality.validationRate"
+        :margin-reliable="data.dataQuality.marginReliable"
+      />
+
+      <!-- Portfolio Health -->
+      <UPageGrid v-if="data?.portfolioHealth" class="lg:grid-cols-4 gap-4 mb-4">
+        <UPageCard variant="subtle" class="mh-card-hover">
+          <p class="text-xs text-muted uppercase">Indice HHI</p>
+          <p class="text-2xl font-semibold" :class="hhiColor">{{ data.portfolioHealth.hhi }}</p>
+          <p class="text-xs" :class="hhiColor">{{ hhiLabel }}</p>
+        </UPageCard>
+        <UPageCard variant="subtle" class="mh-card-hover">
+          <p class="text-xs text-muted uppercase">Concentration Top 1</p>
+          <p class="text-2xl font-semibold text-highlighted">{{ data.portfolioHealth.top1Share }}%</p>
+          <p class="text-xs text-muted">du CA total</p>
+        </UPageCard>
+        <UPageCard variant="subtle" class="mh-card-hover">
+          <p class="text-xs text-muted uppercase">Concentration Top 3</p>
+          <p class="text-2xl font-semibold text-highlighted">{{ data.portfolioHealth.top3Share.toFixed(1) }}%</p>
+          <p class="text-xs text-muted">du CA total</p>
+        </UPageCard>
+        <UPageCard variant="subtle" class="mh-card-hover">
+          <p class="text-xs text-muted uppercase">Marge negative</p>
+          <p class="text-2xl font-semibold" :class="data.portfolioHealth.negativeMarginCount > 0 ? 'text-red-600' : 'text-green-600'">{{ data.portfolioHealth.negativeMarginCount }}</p>
+          <p class="text-xs text-muted">sur {{ data.portfolioHealth.productCount }} produits</p>
+        </UPageCard>
+      </UPageGrid>
+
       <UTabs v-model="activeTab" :items="tabs" class="w-full">
         <!-- ═══ TAB 1: PRODUITS ═══ -->
         <template #produits>

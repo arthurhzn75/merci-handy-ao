@@ -7,15 +7,17 @@ import type { Range } from '~/types'
 useDashboard()
 
 const range = shallowRef<Range>({ start: sub(new Date(), { years: 1 }), end: new Date() })
+const excludeGifts = ref(true)
 
 const queryParams = computed(() => ({
   from: range.value.start.toISOString(),
-  to: range.value.end.toISOString()
+  to: range.value.end.toISOString(),
+  excludeGifts: excludeGifts.value ? 'true' : undefined
 }))
 
 const { data } = await useFetch('/api/mix', {
   query: queryParams,
-  default: () => ({ mix: { months: [], types: [], data: [] }, donut: [], priceAnalysis: [] })
+  default: () => ({ mix: { months: [], types: [], data: [] }, donut: [], priceAnalysis: [], dataQuality: null })
 })
 
 const fmtCurrency = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
@@ -27,8 +29,15 @@ const pastelColors = ['var(--color-mh-mint)', 'var(--color-mh-sky)', 'var(--colo
 const priceColumns: TableColumn<any>[] = [
   { accessorKey: 'label', header: 'Tranche de prix' },
   { accessorKey: 'quantity', header: () => h('div', { class: 'text-right' }, 'Qte'), cell: ({ row }) => h('div', { class: 'text-right' }, row.getValue('quantity')) },
+  { accessorKey: 'quantityShare', header: () => h('div', { class: 'text-right' }, '% Qte'), cell: ({ row }) => h('div', { class: 'text-right text-muted' }, `${row.getValue('quantityShare')}%`) },
   { accessorKey: 'netSales', header: () => h('div', { class: 'text-right' }, 'CA Net'), cell: ({ row }) => h('div', { class: 'text-right font-medium' }, fmtCurrency(row.getValue('netSales') as number)) },
-  { accessorKey: 'marginRate', header: () => h('div', { class: 'text-right' }, 'Marge %'), cell: ({ row }) => h('div', { class: 'text-right' }, `${row.getValue('marginRate')}%`) }
+  {
+    accessorKey: 'marginRate', header: () => h('div', { class: 'text-right' }, 'Marge %'),
+    cell: ({ row }) => {
+      const r = row.getValue('marginRate') as number
+      return h('div', { class: `text-right font-medium ${r >= 70 ? 'text-green-600' : r >= 50 ? 'text-yellow-600' : 'text-red-600'}` }, `${r}%`)
+    }
+  }
 ]
 </script>
 
@@ -43,11 +52,22 @@ const priceColumns: TableColumn<any>[] = [
       <UDashboardToolbar>
         <template #left>
           <HomeDateRangePicker v-model="range" class="-ms-1" />
+          <label class="flex items-center gap-2 text-sm cursor-pointer ml-4">
+            <input v-model="excludeGifts" type="checkbox" class="rounded" />
+            Exclure cadeaux
+          </label>
         </template>
       </UDashboardToolbar>
     </template>
 
     <template #body>
+      <DataQualityBanner
+        v-if="data?.dataQuality"
+        :cogs-gap-rate="data.dataQuality.cogsGapRate"
+        :validation-rate="data.dataQuality.validationRate"
+        :margin-reliable="data.dataQuality.marginReliable"
+      />
+
       <!-- Donut: repartition CA par type -->
       <div class="grid lg:grid-cols-2 gap-4">
         <UCard class="mh-rainbow-border">
@@ -65,7 +85,8 @@ const priceColumns: TableColumn<any>[] = [
                 />
               </div>
               <span class="text-sm font-medium w-20 text-right">{{ fmtCurrency(d.netSales) }}</span>
-              <span class="text-xs text-muted w-12 text-right">{{ donutTotal > 0 ? ((d.netSales / donutTotal) * 100).toFixed(1) : 0 }}%</span>
+              <span class="text-xs w-14 text-right" :class="d.marginRate >= 70 ? 'text-green-600' : d.marginRate >= 50 ? 'text-yellow-600' : 'text-red-600'">{{ d.marginRate }}%</span>
+              <span class="text-xs text-muted w-12 text-right">{{ d.revenueShare }}%</span>
             </div>
           </div>
         </UCard>

@@ -598,18 +598,18 @@ export function getDiscountsAnalysis(lines: LineItem[]) {
   }
 
   // Most discounted products
-  const productDiscounts = new Map<string, { type: string; discountTotal: number; grossSales: number; netSales: number; orders: number }>()
+  const productDiscounts = new Map<string, { type: string; discountTotal: number; grossSales: number; netSales: number; orders: Set<string> }>()
   for (const line of lines) {
     if (!line.productTitle || line.discounts <= 0) continue
     const key = line.productTitle
     if (!productDiscounts.has(key)) {
-      productDiscounts.set(key, { type: line.productType, discountTotal: 0, grossSales: 0, netSales: 0, orders: 0 })
+      productDiscounts.set(key, { type: line.productType, discountTotal: 0, grossSales: 0, netSales: 0, orders: new Set() })
     }
     const p = productDiscounts.get(key)!
     p.discountTotal += line.discounts
     p.grossSales += line.grossSales
     p.netSales += line.netSales
-    p.orders++
+    p.orders.add(line.orderId)
   }
 
   const topDiscounted = Array.from(productDiscounts.entries())
@@ -619,10 +619,9 @@ export function getDiscountsAnalysis(lines: LineItem[]) {
       discountTotal: Math.round(p.discountTotal * 100) / 100,
       grossSales: Math.round(p.grossSales * 100) / 100,
       discountRate: p.grossSales > 0 ? Math.round((p.discountTotal / p.grossSales) * 10000) / 100 : 0,
-      occurrences: p.orders
+      occurrences: p.orders.size
     }))
     .sort((a, b) => b.discountTotal - a.discountTotal)
-    .slice(0, 20)
 
   // Top discount codes
   const codes = new Map<string, { orders: Set<string>; discount: number; sales: number }>()
@@ -721,107 +720,113 @@ export function getUnitEconomics(lines: LineItem[]) {
   }
 }
 
-// ─── Traffic breakdown (kept from before) ────────────────────────
+// ─── Data quality metrics ───────────────────────────────────────
 
-export function getTrafficBreakdown(lines: LineItem[], model: 'first' | 'last' = 'last') {
-  const groups = new Map<string, {
-    orders: Set<string>; netSales: number; newOrders: number; totalOrders: number
-  }>()
+export function computeDataQualityMetrics(lines: LineItem[]) {
+  const orderLines = lines.filter(l => l.saleActionType === 'ORDER' && l.grossSales > 0)
+  const totalLines = orderLines.length
+  const linesWithZeroCogs = orderLines.filter(l => Math.abs(l.grossProfit - l.netSales) < 0.01).length
+  const cogsGapRate = totalLines > 0 ? Math.round((linesWithZeroCogs / totalLines) * 10000) / 100 : 0
 
+  let validationErrors = 0
   for (const line of lines) {
-    if (line.orderActionType !== 'ORDER' || line.saleActionType !== 'ORDER') continue
-
-    const source = model === 'first' ? (line.firstVisitSource || 'direct') : (line.lastVisitSource || 'direct')
-    const medium = model === 'first' ? (line.firstVisitMedium || '(none)') : (line.lastVisitMedium || '(none)')
-    const campaign = model === 'first' ? (line.firstVisitCampaign || '(none)') : (line.lastVisitCampaign || '(none)')
-    const key = `${source}|||${medium}|||${campaign}`
-
-    if (!groups.has(key)) {
-      groups.set(key, { orders: new Set(), netSales: 0, newOrders: 0, totalOrders: 0 })
-    }
-    const g = groups.get(key)!
-    g.netSales += line.netSales
-    if (!g.orders.has(line.orderId)) {
-      g.orders.add(line.orderId)
-      g.totalOrders++
-      if (line.customerSaleType === 'First-time') g.newOrders++
-    }
+    if (line.saleActionType !== 'ORDER') continue
+    const expected = line.grossSales + line.discounts + line.returns
+    const diff = Math.abs(line.netSales - expected)
+    if (diff > 0.02) validationErrors++
   }
-
-  return Array.from(groups.entries())
-    .map(([key, g]) => {
-      const [source, medium, campaign] = key.split('|||')
-      return {
-        source: source!, medium: medium!, campaign: campaign!,
-        orders: g.orders.size,
-        revenue: Math.round(g.netSales * 100) / 100,
-        aov: g.orders.size > 0 ? Math.round((g.netSales / g.orders.size) * 100) / 100 : 0,
-        newCustomerRate: g.totalOrders > 0 ? Math.round((g.newOrders / g.totalOrders) * 10000) / 100 : 0
-      }
-    })
-    .sort((a, b) => b.revenue - a.revenue)
-}
-
-// ─── Customer stats ──────────────────────────────────────────────
-
-export function getCustomerStats(lines: LineItem[]) {
-  const customers = new Map<string, { revenue: number; orders: Set<string>; isNew: boolean }>()
-
-  for (const line of lines) {
-    if (line.orderActionType !== 'ORDER' || line.saleActionType !== 'ORDER') continue
-    if (!line.customerId) continue
-
-    if (!customers.has(line.customerId)) {
-      customers.set(line.customerId, { revenue: 0, orders: new Set(), isNew: line.customerSaleType === 'First-time' })
-    }
-    const c = customers.get(line.customerId)!
-    c.revenue += line.netSales
-    c.orders.add(line.orderId)
-  }
-
-  const total = customers.size
-  if (total === 0) return { uniqueCustomers: 0, newCustomerRate: 0, avgLtv: 0, avgFrequency: 0 }
-
-  const newCount = Array.from(customers.values()).filter(c => c.isNew).length
-  const totalRevenue = Array.from(customers.values()).reduce((a, c) => a + c.revenue, 0)
-  const totalOrders = Array.from(customers.values()).reduce((a, c) => a + c.orders.size, 0)
+  const validationRate = totalLines > 0 ? Math.round(((totalLines - validationErrors) / totalLines) * 10000) / 100 : 100
 
   return {
-    uniqueCustomers: total,
-    newCustomerRate: Math.round((newCount / total) * 10000) / 100,
-    avgLtv: Math.round((totalRevenue / total) * 100) / 100,
-    avgFrequency: Math.round((totalOrders / total) * 100) / 100
+    totalLines,
+    cogsGapRate,
+    cogsGapCount: linesWithZeroCogs,
+    validationRate,
+    validationErrors,
+    marginReliable: cogsGapRate < 10
   }
 }
 
-// ─── Geo breakdown ───────────────────────────────────────────────
+// ─── Returns trend ──────────────────────────────────────────────
 
-export function getGeoBreakdown(lines: LineItem[]) {
-  const geos = new Map<string, { orders: Set<string>; netSales: number }>()
+export function getReturnsTrend(lines: LineItem[], granularity: 'weekly' | 'monthly' = 'monthly') {
+  const buckets = new Map<string, { sold: number; returned: number; returnAmount: number }>()
+
+  const getBucketKey = (date: Date) => {
+    if (granularity === 'weekly') return format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+    return format(startOfMonth(date), 'yyyy-MM')
+  }
+
+  for (const line of lines) {
+    if (line.saleLineType !== 'PRODUCT') continue
+    const key = getBucketKey(line.orderCreatedAt)
+    if (!buckets.has(key)) buckets.set(key, { sold: 0, returned: 0, returnAmount: 0 })
+    const b = buckets.get(key)!
+    if (line.salesQuantity > 0) b.sold += line.salesQuantity
+    b.returned += line.itemsReturned
+    b.returnAmount += Math.abs(line.returns)
+  }
+
+  return Array.from(buckets.entries())
+    .map(([date, b]) => ({
+      date,
+      sold: b.sold,
+      returned: b.returned,
+      returnRate: (b.sold + b.returned) > 0 ? Math.round((b.returned / (b.sold + b.returned)) * 10000) / 100 : 0,
+      returnAmount: Math.round(b.returnAmount * 100) / 100
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+// ─── Discounts trend ────────────────────────────────────────────
+
+export function getDiscountsTrend(lines: LineItem[], granularity: 'weekly' | 'monthly' = 'monthly') {
+  const buckets = new Map<string, {
+    discountOrders: Set<string>; fullPriceOrders: Set<string>
+    discountAmount: number; discountSales: number; discountProfit: number
+    fullPriceSales: number; fullPriceProfit: number
+  }>()
+
+  const getBucketKey = (date: Date) => {
+    if (granularity === 'weekly') return format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+    return format(startOfMonth(date), 'yyyy-MM')
+  }
 
   for (const line of lines) {
     if (line.orderActionType !== 'ORDER' || line.saleActionType !== 'ORDER') continue
-    const country = line.shippingCountry || 'Inconnu'
-    const city = line.shippingCity || 'Inconnu'
-    const key = `${country}|||${city}`
-
-    if (!geos.has(key)) geos.set(key, { orders: new Set(), netSales: 0 })
-    const g = geos.get(key)!
-    g.orders.add(line.orderId)
-    g.netSales += line.netSales
+    const key = getBucketKey(line.orderCreatedAt)
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        discountOrders: new Set(), fullPriceOrders: new Set(),
+        discountAmount: 0, discountSales: 0, discountProfit: 0,
+        fullPriceSales: 0, fullPriceProfit: 0
+      })
+    }
+    const b = buckets.get(key)!
+    if (line.orderDiscountCode) {
+      b.discountOrders.add(line.orderId)
+      b.discountAmount += Math.abs(line.discounts)
+      b.discountSales += line.netSales
+      b.discountProfit += line.grossProfit
+    } else {
+      b.fullPriceOrders.add(line.orderId)
+      b.fullPriceSales += line.netSales
+      b.fullPriceProfit += line.grossProfit
+    }
   }
 
-  const totalRevenue = Array.from(geos.values()).reduce((a, g) => a + g.netSales, 0)
-
-  return Array.from(geos.entries())
-    .map(([key, g]) => {
-      const [country, city] = key.split('|||')
+  return Array.from(buckets.entries())
+    .map(([date, b]) => {
+      const totalOrders = b.discountOrders.size + b.fullPriceOrders.size
       return {
-        country: country!, city: city!,
-        orders: g.orders.size,
-        revenue: Math.round(g.netSales * 100) / 100,
-        revenueShare: totalRevenue > 0 ? Math.round((g.netSales / totalRevenue) * 10000) / 100 : 0
+        date,
+        discountOrders: b.discountOrders.size,
+        fullPriceOrders: b.fullPriceOrders.size,
+        discountShare: totalOrders > 0 ? Math.round((b.discountOrders.size / totalOrders) * 10000) / 100 : 0,
+        discountAmount: Math.round(b.discountAmount * 100) / 100,
+        discountMarginRate: b.discountSales > 0 ? Math.round((b.discountProfit / b.discountSales) * 10000) / 100 : 0,
+        fullPriceMarginRate: b.fullPriceSales > 0 ? Math.round((b.fullPriceProfit / b.fullPriceSales) * 10000) / 100 : 0
       }
     })
-    .sort((a, b) => b.revenue - a.revenue)
+    .sort((a, b) => a.date.localeCompare(b.date))
 }

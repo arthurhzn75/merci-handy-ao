@@ -14,7 +14,7 @@ useHead({
 })
 
 const title = 'Merci Handy — Analyse Produit'
-const description = 'Dashboard eCommerce Merci Handy — Analyse produit, acquisition, clients et geographie.'
+const description = 'Dashboard eCommerce Merci Handy — Analyse produit, performance et rentabilite.'
 
 useSeoMeta({
   title,

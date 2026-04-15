@@ -4,6 +4,7 @@ import type { TableColumn } from '@nuxt/ui'
 import type { Period, Range } from '~/types'
 
 const props = defineProps<{ period: Period; range: Range }>()
+const router = useRouter()
 
 const UBadge = resolveComponent('UBadge')
 
@@ -45,8 +46,26 @@ const columns: TableColumn<any>[] = [
       const color = rate >= 70 ? 'text-green-600' : rate >= 50 ? 'text-yellow-600' : 'text-red-600'
       return h('div', { class: `text-right font-medium ${color}` }, `${rate}%`)
     }
+  },
+  {
+    accessorKey: 'returnRate',
+    header: () => h('div', { class: 'text-right' }, 'Retour %'),
+    cell: ({ row }) => {
+      const rate = row.getValue('returnRate') as number
+      const color = rate > 10 ? 'text-red-600' : rate > 5 ? 'text-yellow-600' : 'text-green-600'
+      return h('div', { class: `text-right ${color}` }, `${rate}%`)
+    }
+  },
+  {
+    accessorKey: 'revenueShare',
+    header: () => h('div', { class: 'text-right' }, '% CA'),
+    cell: ({ row }) => h('div', { class: 'text-right text-muted' }, `${row.getValue('revenueShare')}%`)
   }
 ]
+
+function onRowClick(row: any) {
+  router.push({ path: '/products', query: { search: row.original.product } })
+}
 </script>
 
 <template>
@@ -61,10 +80,11 @@ const columns: TableColumn<any>[] = [
       :ui="{
         base: 'table-fixed border-separate border-spacing-0',
         thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
-        tbody: '[&>tr]:last:[&>td]:border-b-0',
+        tbody: '[&>tr]:last:[&>td]:border-b-0 [&>tr]:cursor-pointer [&>tr]:hover:bg-elevated/50',
         th: 'first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r text-xs',
         td: 'border-b border-default text-sm'
       }"
+      @select="onRowClick"
     />
   </UCard>
 </template>

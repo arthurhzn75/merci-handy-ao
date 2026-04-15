@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { subDays } from 'date-fns'
-import { getProductLines, getProductProfitability, getCategoryStats } from '../utils/dataset'
+import { getProductLines, getProductProfitability, getCategoryStats, computeDataQualityMetrics } from '../utils/dataset'
 
 const querySchema = z.object({
   from: z.string().optional(),
@@ -84,5 +84,16 @@ export default defineEventHandler(async (event) => {
   // Available types from all data
   const availableTypes = [...new Set(lines.map(l => l.productType).filter(Boolean))].sort()
 
-  return { catalog, abcSummary, bcgData, categoryStats, fullCatalog, availableTypes }
+  // Data quality
+  const dataQuality = computeDataQualityMetrics(lines)
+
+  // Concentration index (HHI)
+  const hhi = Math.round(catalog.reduce((sum, p) => sum + Math.pow(p.revenueShare, 2), 0) * 100)
+  const top1Share = catalog.length > 0 ? catalog[0]!.revenueShare : 0
+  const top3Share = catalog.slice(0, 3).reduce((s, p) => s + p.revenueShare, 0)
+  const negativeMarginCount = catalog.filter(p => p.marginRate < 0).length
+
+  const portfolioHealth = { hhi, top1Share, top3Share, negativeMarginCount, productCount: catalog.length }
+
+  return { catalog, abcSummary, bcgData, categoryStats, fullCatalog, availableTypes, dataQuality, portfolioHealth }
 })

@@ -1,10 +1,11 @@
 import { z } from 'zod'
 import { subDays } from 'date-fns'
-import { getProductLines, getMixByMonth, computeOverviewStats } from '../utils/dataset'
+import { getProductLines, getMixByMonth, computeDataQualityMetrics, isGiftProduct } from '../utils/dataset'
 
 const querySchema = z.object({
   from: z.string().optional(),
-  to: z.string().optional()
+  to: z.string().optional(),
+  excludeGifts: z.string().optional()
 })
 
 export default defineEventHandler(async (event) => {
@@ -13,17 +14,32 @@ export default defineEventHandler(async (event) => {
   const to = query.to ? new Date(query.to) : new Date()
   const from = query.from ? new Date(query.from) : subDays(to, 365)
 
-  const lines = await getProductLines(from, to)
+  let lines = await getProductLines(from, to)
+
+  if (query.excludeGifts === 'true') {
+    lines = lines.filter(l => !isGiftProduct(l.productTitle))
+  }
+
   const mix = getMixByMonth(lines)
 
-  // Type-level donut data
-  const typeMap = new Map<string, number>()
+  // Type-level donut data (revenue + margin)
+  const typeMap = new Map<string, { netSales: number; grossProfit: number }>()
   for (const line of lines) {
     if (!line.productType) continue
-    typeMap.set(line.productType, (typeMap.get(line.productType) || 0) + line.netSales)
+    if (!typeMap.has(line.productType)) typeMap.set(line.productType, { netSales: 0, grossProfit: 0 })
+    const t = typeMap.get(line.productType)!
+    t.netSales += line.netSales
+    t.grossProfit += line.grossProfit
   }
+  const totalNetSales = Array.from(typeMap.values()).reduce((s, t) => s + t.netSales, 0)
   const donut = Array.from(typeMap.entries())
-    .map(([type, netSales]) => ({ type, netSales: Math.round(netSales * 100) / 100 }))
+    .map(([type, t]) => ({
+      type,
+      netSales: Math.round(t.netSales * 100) / 100,
+      grossProfit: Math.round(t.grossProfit * 100) / 100,
+      marginRate: t.netSales > 0 ? Math.round((t.grossProfit / t.netSales) * 10000) / 100 : 0,
+      revenueShare: totalNetSales > 0 ? Math.round((t.netSales / totalNetSales) * 10000) / 100 : 0
+    }))
     .sort((a, b) => b.netSales - a.netSales)
 
   // Price point analysis
@@ -35,6 +51,7 @@ export default defineEventHandler(async (event) => {
     { label: '30-50 EUR', min: 30, max: 50 },
     { label: '50+ EUR', min: 50, max: 9999 }
   ]
+  const totalQuantity = lines.filter(l => l.salesQuantity > 0).reduce((a, l) => a + l.salesQuantity, 0)
   const priceAnalysis = priceRanges.map(range => {
     const rangeLines = lines.filter(l =>
       l.unitPrice >= range.min && l.unitPrice < range.max && l.salesQuantity > 0
@@ -45,10 +62,13 @@ export default defineEventHandler(async (event) => {
     return {
       label: range.label,
       quantity,
+      quantityShare: totalQuantity > 0 ? Math.round((quantity / totalQuantity) * 10000) / 100 : 0,
       netSales: Math.round(netSales * 100) / 100,
       marginRate: netSales > 0 ? Math.round((grossProfit / netSales) * 10000) / 100 : 0
     }
   })
 
-  return { mix, donut, priceAnalysis }
+  const dataQuality = computeDataQualityMetrics(lines)
+
+  return { mix, donut, priceAnalysis, dataQuality }
 })
