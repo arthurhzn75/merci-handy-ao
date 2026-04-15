@@ -78,9 +78,6 @@ export default defineEventHandler(async (event) => {
   // --- Tab 2: Category stats ---
   const categoryStats = getCategoryStats(lines)
 
-  // --- Tab 3: Full catalog (no grouping, no exclusion) ---
-  const fullCatalog = getProductProfitability(lines, false)
-
   // Available types from all data
   const availableTypes = [...new Set(lines.map(l => l.productType).filter(Boolean))].sort()
 
@@ -95,5 +92,5 @@ export default defineEventHandler(async (event) => {
 
   const portfolioHealth = { hhi, top1Share, top3Share, negativeMarginCount, productCount: catalog.length }
 
-  return { catalog, abcSummary, bcgData, categoryStats, fullCatalog, availableTypes, dataQuality, portfolioHealth }
+  return { catalog, abcSummary, bcgData, categoryStats, availableTypes, dataQuality, portfolioHealth }
 })
